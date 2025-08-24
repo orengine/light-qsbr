@@ -82,15 +82,15 @@ unsafe impl Sync for Storage {}
 /// use light_qsbr::{local_manager, SharedManager, orengine_utils::instant::OrengineInstant};
 ///
 /// # struct Runtime { tasks: Vec<Box<dyn FnOnce() + Send + 'static>>, is_stopped: Cell<bool> }
-/// # struct LockFreeStack<T> {}
-/// # struct LockFreeStackNode<T> {}
+/// # struct LockFreeStack<T> { ptr: *mut T }
+/// # struct LockFreeStackNode<T> { ptr: *mut T }
 /// # impl<T> LockFreeStackNode<T> {
 /// #     fn get_node_ptr(&self) -> *mut LockFreeStackNode<T> {
 /// #         unreachable!()
 /// #     }
 /// # }
 /// # impl<T> LockFreeStack<T> {
-/// #     fn pop(&self) -> LockFreeStackNode<T> { LockFreeStackNode {} }
+/// #     fn pop(&self) -> LockFreeStackNode<T> { LockFreeStackNode::<T> { ptr: unreachable!() } }
 /// # }
 /// #
 /// fn start_runtime() {
@@ -400,6 +400,6 @@ pub fn local_manager() -> &'static mut LocalManager {
             unwrap_or_bug_message_hint(
                 (*local_manager.get()).as_mut(),
                 "Local manager is not registered in this thread."
-            ) 
+            )
         })
 }

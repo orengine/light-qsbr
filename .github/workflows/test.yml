@@ -6,6 +6,36 @@ on:
   pull_request:
 
 jobs:
+  debug:
+    runs-on: ubuntu-24.04-arm
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          toolchain: stable
+          components: rustfmt, clippy
+
+      - name: Build project
+        run: cargo build --verbose
+
+      - name: Run tests (this might fail)
+        run: cargo test --verbose || echo "Tests failed - starting debug session"
+
+      - name: Setup tmate debug session
+        if: ${{ failure() }}  # Only start tmate if previous steps failed
+        uses: mxschmitt/action-tmate@v3
+        with:
+          limit-access-to-actor: true  # Only you can access the session
+
+      # Optional: Continue with other steps if not debugging
+      - name: Continue workflow
+        if: ${{ success() }}
+        run: echo "Workflow completed successfully"
+
   x86:
     name: x86_64 (ubuntu-latest)
     runs-on: ubuntu-latest

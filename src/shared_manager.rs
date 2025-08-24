@@ -1,11 +1,10 @@
 /// This module provides the [`SharedManager`].
-use std::sync::atomic::Ordering::{AcqRel, Relaxed};
+use std::sync::atomic::Ordering::{AcqRel, Relaxed, SeqCst};
 use orengine_utils::cache_padded::CachePaddedAtomicUsize;
 use orengine_utils::hints::unlikely;
 use orengine_utils::light_arc::LightArc;
 use crate::local_manager::{LocalManager, LOCAL_MANAGER};
 use crate::number_of_executors::NumberOfExecutorsInEpoch;
-
 
 /// The internal state of the [`SharedManager`].
 ///
@@ -67,13 +66,13 @@ impl SharedManager {
     /// Increments the counter of deallocated bytes (test-only).
     #[cfg(test)]
     pub(crate) fn increment_bytes_deallocated(&self, bytes: usize) {
-        self.inner.bytes_deallocated.fetch_add(bytes, Relaxed);
+        self.inner.bytes_deallocated.fetch_add(bytes, SeqCst);
     }
 
     /// Returns the total number of bytes deallocated since creation (test-only).
     #[cfg(test)]
     pub(crate) fn bytes_deallocated(&self) -> usize {
-        self.inner.bytes_deallocated.load(Relaxed)
+        self.inner.bytes_deallocated.load(SeqCst)
     }
 
     /// Registers a new executor in the current thread.

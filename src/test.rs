@@ -28,7 +28,7 @@ fn wait_new_epoch() {
     let start_epoch = local_manager().shared_manager().current_epoch();
 
     while start_epoch == local_manager().shared_manager().current_epoch() {
-        local_manager().maybe_pass_epoch(OrengineInstant::from(std::time::Instant::now()));
+        local_manager().maybe_pass_epoch(OrengineInstant::now());
 
         thread::sleep(Duration::from_micros(1));
     }
@@ -149,6 +149,8 @@ fn test_concurrent_dealloc_and_drop() {
 
             while !was_finished_clone.load(Ordering::SeqCst) {
                 local_manager().maybe_pass_epoch(OrengineInstant::now());
+
+                thread::yield_now();
             }
 
             assert_eq!(

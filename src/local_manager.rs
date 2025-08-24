@@ -397,9 +397,7 @@ thread_local! {
 pub fn local_manager() -> &'static mut LocalManager {
     LOCAL_MANAGER
         .with(|local_manager| unsafe {
-            unwrap_or_bug_message_hint(
-                (*local_manager.get()).as_mut(),
-                "Local manager is not registered in this thread."
-            ) 
+            (*local_manager.get()).as_mut().expect(
+                "Local manager is not registered in this thread.")
         })
 }

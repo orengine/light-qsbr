@@ -6,22 +6,6 @@ on:
   pull_request:
 
 jobs:
-  debug:
-    runs-on: ubuntu-24.04-arm
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Install Rust + Clippy
-        uses: dtolnay/rust-toolchain@stable
-        with:
-          components: clippy
-          toolchain: 1.83.0
-
-      - name: Setup tmate debug session
-        uses: mxschmitt/action-tmate@v3
-
   x86:
     name: x86_64 (ubuntu-latest)
     runs-on: ubuntu-latest

@@ -1,0 +1,17 @@
+[package]
+name = "light-qsbr"
+version = "1.0.0"
+edition = "2021"
+rust-version = "1.83.0"
+description = "A lightweight Quiescent-State-Based Reclamation (QSBR) library for safe memory reclamation in lock-free and async runtimes."
+license = "MIT"
+repository = "https://github.com/orengine/light-qsbr"
+homepage = "https://github.com/orengine/light-qsbr"
+documentation = "https://docs.rs/light-qsbr"
+readme = "README.md"
+authors = ["Eugene Usachev <https://github.com/Eugene-Usachev> and orengine contributors <team@orengine>"]
+keywords = ["qsbr", "lock-free", "memory-reclamation", "high-performance", "async"]
+categories = ["concurrency", "memory-management", "asynchronous"]
+
+[dependencies]
+orengine-utils = "^1"

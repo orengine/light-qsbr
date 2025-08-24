@@ -57,7 +57,7 @@ fn main() {
     local_manager().maybe_pass_epoch(OrengineInstant::now());
 
     // Deregister before thread exit
-    unsafe { local_manager().deregister() };
+    unsafe { LocalManager::deregister() };
 }
 ```
 

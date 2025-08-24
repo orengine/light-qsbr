@@ -79,7 +79,7 @@ unsafe impl Sync for Storage {}
 ///
 /// ```rust
 /// use std::cell::Cell;
-/// use light_qsbr::{local_manager, SharedManager, orengine_utils::instant::OrengineInstant};
+/// use light_qsbr::{local_manager, SharedManager, orengine_utils::instant::OrengineInstant, LocalManager};
 ///
 /// # struct Runtime { tasks: Vec<Box<dyn FnOnce() + Send + 'static>>, is_stopped: Cell<bool> }
 /// # struct LockFreeStack<T> { ptr: *mut T }
@@ -115,7 +115,7 @@ unsafe impl Sync for Storage {}
 ///         local_manager().maybe_pass_epoch(OrengineInstant::now()); // Free some memory if it is safe
 ///     }
 ///
-///     unsafe { local_manager().deregister() };
+///     unsafe { LocalManager::deregister() };
 /// }
 ///
 /// fn one_of_tasks(lock_free_stack: LockFreeStack<usize>) {
@@ -288,11 +288,10 @@ impl LocalManager {
     /// It the thread is not registered.
     ///
     /// [`registration`]: SharedManager::register_new_executor
-    pub unsafe fn deregister(&mut self) {
+    pub unsafe fn deregister() {
         struct DeregisterInNewEpochArgs {
             epoch_at_start: usize,
             storage: Storage,
-            is_already_in_new_thread: bool,
             shared_manager: SharedManager,
         }
 
@@ -322,60 +321,43 @@ impl LocalManager {
                 return;
             }
 
-            if args.is_already_in_new_thread {
-                wait_new_epoch_and_clear(&args.shared_manager, args.storage, args.epoch_at_start);
-            } else {
-                let shared_manager = args.shared_manager.clone();
-
-                thread::spawn(move || {
-                    wait_new_epoch_and_clear(&shared_manager, args.storage, args.epoch_at_start);
-                });
-            }
+            wait_new_epoch_and_clear(&args.shared_manager, args.storage, args.epoch_at_start);
         }
 
-        let epoch_at_start = self.current_epoch;
-        let mut full_storage = mem::replace(&mut self.current_storage, Storage::new());
-
-        full_storage.append(&mut self.prev_storage);
-
-        // Maybe we still have not passed the current epoch
-        if !self.was_passed_epoch {
-            deregister_in_new_epoch(DeregisterInNewEpochArgs {
-                epoch_at_start,
-                storage: full_storage,
-                is_already_in_new_thread: false,
-                shared_manager: self.shared_manager.clone(),
+        let mut local_manager = LOCAL_MANAGER
+            .with(|local_manager_| unsafe {
+                (*local_manager_.get())
+                    .take()
+                    .expect("LocalManager is not registered in this thread")
             });
 
-            LOCAL_MANAGER.with(|local_manager_| unsafe {
-                (*local_manager_.get()).take().expect("LocalManager is not registered");
-            });
+        let epoch_at_start = local_manager.current_epoch;
+        let mut full_storage = mem::replace(&mut local_manager.current_storage, Storage::new());
 
-            return;
-        }
+        full_storage.append(&mut local_manager.prev_storage);
 
         let mut args = DeregisterInNewEpochArgs {
             epoch_at_start,
             storage: full_storage,
-            is_already_in_new_thread: true,
-            shared_manager: self
+            shared_manager: local_manager
                 .shared_manager
                 .clone(),
         };
 
-        LOCAL_MANAGER.with(|local_manager_| unsafe {
-            (*local_manager_.get()).take().expect("LocalManager is not registered");
-        });
-
-        thread::spawn(move || {
-            while args.shared_manager.current_epoch() == args.epoch_at_start {
-                thread::sleep(Duration::from_millis(1));
-            }
-
-            args.epoch_at_start += 1;
-
+        // Maybe we still have not passed the current epoch
+        if !local_manager.was_passed_epoch {
             deregister_in_new_epoch(args);
-        });
+
+            return;
+        }
+
+        while args.shared_manager.current_epoch() == args.epoch_at_start {
+            thread::sleep(Duration::from_millis(1));
+        }
+
+        args.epoch_at_start += 1;
+
+        deregister_in_new_epoch(args);
     }
 }
 

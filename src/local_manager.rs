@@ -5,7 +5,7 @@ use std::mem::MaybeUninit;
 use std::time::Duration;
 use std::{mem, thread};
 use orengine_utils::clear_with;
-use orengine_utils::hints::{likely, unlikely, unwrap_or_bug_hint, unwrap_or_bug_message_hint};
+use orengine_utils::hints::{likely, unlikely, unwrap_or_bug_hint};
 use orengine_utils::instant::OrengineInstant;
 use crate::deffered::Deferred;
 use crate::shared_manager::SharedManager;
@@ -397,7 +397,6 @@ thread_local! {
 pub fn local_manager() -> &'static mut LocalManager {
     LOCAL_MANAGER
         .with(|local_manager| unsafe {
-            (*local_manager.get()).as_mut().expect(
-                "Local manager is not registered in this thread.")
+            (*local_manager.get()).as_mut().expect("Local manager is not registered in this thread.")
         })
 }

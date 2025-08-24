@@ -369,9 +369,9 @@ mod lock_free_stack {
         }
 
         fn clear(&mut self) {
-            let mut node = self.head.load(Ordering::Acquire);
+            let mut node = *self.head.get_mut();
 
-            self.head.store(null_mut(), Ordering::Release);
+            *self.head.get_mut() = null_mut();
 
             while !node.is_null() {
                 let node_ref = unsafe { &*node };

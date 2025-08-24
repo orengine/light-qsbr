@@ -179,9 +179,9 @@ fn test_concurrent_dealloc_and_drop() {
 
         was_finished.store(true, Ordering::SeqCst);
 
-        t1.join().unwrap();
-
         unsafe { LocalManager::deregister() };
+
+        t1.join().unwrap();
     }
 }
 

@@ -19,11 +19,8 @@ jobs:
           toolchain: stable
           components: rustfmt, clippy
 
-      - name: Build project
-        run: cargo build --verbose
-
       - name: Run tests (this might fail)
-        run: cargo test --verbose || echo "Tests failed - starting debug session"
+        run: cargo test --all-targets --all-features -- --test-threads=1 || echo "Tests failed - starting debug session"
 
       - name: Setup tmate debug session
         if: ${{ failure() }}  # Only start tmate if previous steps failed

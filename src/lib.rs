@@ -31,13 +31,13 @@
 //! 4. Periodically, executors call [`LocalManager::maybe_pass_epoch`] to attempt to advance
 //!    the epoch and trigger safe reclamation.
 //! 5. When shutting down, executors must call
-//!    `unsafe { local_manager().deregister() }` to deregister themselves.
+//!    `unsafe { LocalManager::deregister() }` to deregister themselves.
 //!
 //! ## Example
 //!
 //! ```rust
 //! use std::cell::Cell;
-//! use light_qsbr::{SharedManager, local_manager};
+//! use light_qsbr::{SharedManager, local_manager, LocalManager};
 //! use light_qsbr::orengine_utils::instant::OrengineInstant;
 //!
 //! # fn main() {
@@ -57,7 +57,7 @@
 //! local_manager().maybe_pass_epoch(OrengineInstant::now());
 //!
 //! // Deregister before thread exit
-//! unsafe { local_manager().deregister() };
+//! unsafe { LocalManager::deregister() };
 //! # }
 //! ```
 //!

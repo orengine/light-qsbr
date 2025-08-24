@@ -5,7 +5,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::thread;
 use std::time::Duration;
 use orengine_utils::instant::OrengineInstant;
-use crate::{local_manager, SharedManager};
+use crate::{local_manager, LocalManager, SharedManager};
 
 struct DroppableElement {
     value: u64,
@@ -58,7 +58,7 @@ fn test_basic_deallocation() {
         local_manager().bytes_deallocated()
     );
 
-    unsafe { local_manager().deregister() };
+    unsafe { LocalManager::deregister() };
 }
 
 #[test]
@@ -86,7 +86,7 @@ fn test_slice_deallocation() {
         initial_bytes + expected_bytes
     );
 
-    unsafe { local_manager().deregister() };
+    unsafe { LocalManager::deregister() };
 }
 
 #[test]
@@ -109,7 +109,7 @@ fn test_drop_function() {
 
     assert_eq!(slice.lock().unwrap().len(), 1);
 
-    unsafe { local_manager().deregister() };
+    unsafe { LocalManager::deregister() };
 }
 
 #[test]
@@ -159,7 +159,7 @@ fn test_concurrent_dealloc_and_drop() {
             );
             assert_eq!(slice.lock().unwrap().len(), 2);
 
-            unsafe { local_manager().deregister() };
+            unsafe { LocalManager::deregister() };
         });
 
         thread::sleep(Duration::from_millis(40));
@@ -181,7 +181,7 @@ fn test_concurrent_dealloc_and_drop() {
 
         t1.join().unwrap();
 
-        unsafe { local_manager().deregister() };
+        unsafe { LocalManager::deregister() };
     }
 }
 
@@ -191,10 +191,11 @@ mod limited_allocator {
     use crate::local_manager;
     use crate::test::wait_new_epoch;
 
-    #[cfg(not(debug_assertions))]
-    pub(crate) const MAX_MEMORY_ALLOCATED: usize = 10 * 1024 * 1024;
-    #[cfg(debug_assertions)]
-    pub(crate) const MAX_MEMORY_ALLOCATED: usize = 2 * 1024 * 1024;
+    pub(crate) const MAX_MEMORY_ALLOCATED: usize = if cfg!(miri) {
+        5 * 1024
+    } else {
+        2 * 1024 * 1024
+    };
 
     pub(crate) struct Allocator {
         memory_used_from_start: AtomicUsize,
@@ -314,7 +315,11 @@ mod lock_free_stack {
             let mut old_head = self.head.load(Ordering::Relaxed);
 
             loop {
-                *(unsafe { &mut *new_node }.next.get_mut()) = old_head;
+                if !cfg!(miri) {
+                    *(unsafe { &mut *new_node }.next.get_mut()) = old_head;
+                } else {
+                    unsafe { &*new_node }.next.store(old_head, Ordering::Relaxed);
+                }
 
                 match self.head.compare_exchange(
                     old_head,
@@ -363,8 +368,19 @@ mod lock_free_stack {
             }
         }
 
-        pub fn clear(&self) {
-            while self.pop().is_some() {}
+        fn clear(&mut self) {
+            let mut node = self.head.load(Ordering::Acquire);
+
+            self.head.store(null_mut(), Ordering::Release);
+
+            while !node.is_null() {
+                let node_ref = unsafe { &*node };
+                let next = node_ref.next.load(Ordering::Acquire);
+
+                (self.drop_fn)(node);
+
+                node = next;
+            }
         }
     }
 
@@ -389,10 +405,11 @@ where
 {
     const TRIES: usize = 3;
     const PAR: usize = 2;
-    #[cfg(not(debug_assertions))]
-    const N: usize = 1_000_000;
-    #[cfg(debug_assertions)]
-    const N: usize = 200_000;
+    const N: usize = if cfg!(miri) {
+        120
+    } else {
+        210_000
+    };
     const COUNT_PER_THREAD: usize = N / PAR;
 
     static TEST_LOCK: Mutex<()> = Mutex::new(());
@@ -409,7 +426,7 @@ where
 
     limited_allocator::limited_allocator().reset();
 
-    unsafe { local_manager().deregister() };
+    unsafe { LocalManager::deregister() };
 
     for _ in 0..TRIES {
         let stack = Arc::new(creator());
@@ -433,7 +450,9 @@ where
                         }
                     }
 
-                    unsafe { local_manager().deregister() };
+                    drop(stack);
+
+                    unsafe { LocalManager::deregister() };
                 })
             })
             .collect::<Vec<_>>();

@@ -37,7 +37,7 @@ struct Inner {
 /// 3. Executors periodically call [`LocalManager::maybe_pass_epoch`] to advance epochs
 ///    and allow reclamation.
 /// 4. When an executor is done, it must deregister with
-///    `unsafe { local_manager().deregister() }`.
+///    `unsafe { LocalManager::deregister() }`.
 ///
 /// # Example
 ///
@@ -156,7 +156,7 @@ impl Drop for Inner {
             "Some executors are still registered when the shared manager is dropped. \
             Make sure to call `deregister_executor` for all registered executors \
             (use {code}.",
-            code = "unsafe { local_manager().deregister() }"
+            code = "unsafe { LocalManager::deregister() }"
         );
     }
 }

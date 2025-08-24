@@ -20,15 +20,9 @@ jobs:
           components: rustfmt, clippy
 
       - name: Setup tmate debug session
-        if: ${{ failure() }}  # Only start tmate if previous steps failed
         uses: mxschmitt/action-tmate@v3
         with:
           limit-access-to-actor: true  # Only you can access the session
-
-      # Optional: Continue with other steps if not debugging
-      - name: Continue workflow
-        if: ${{ success() }}
-        run: echo "Workflow completed successfully"
 
   x86:
     name: x86_64 (ubuntu-latest)

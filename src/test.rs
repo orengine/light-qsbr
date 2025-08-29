@@ -4,7 +4,7 @@ use std::sync::{Arc, Mutex as SyncMutex, Mutex};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::thread;
 use std::time::Duration;
-use orengine_utils::instant::OrengineInstant;
+use orengine_utils::OrengineInstant;
 use crate::{local_manager, LocalManager, SharedManager};
 
 struct DroppableElement {
@@ -187,7 +187,7 @@ fn test_concurrent_dealloc_and_drop() {
 
 mod limited_allocator {
     use std::sync::atomic::{AtomicUsize, Ordering};
-    use orengine_utils::instant::OrengineInstant;
+    use orengine_utils::OrengineInstant;
     use crate::local_manager;
     use crate::test::wait_new_epoch;
 

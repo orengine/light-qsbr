@@ -1,6 +1,6 @@
 [package]
 name = "light-qsbr"
-version = "1.0.1"
+version = "1.0.2"
 edition = "2021"
 rust-version = "1.83.0"
 description = "A lightweight Quiescent-State-Based Reclamation (QSBR) library for safe memory reclamation in lock-free and async runtimes."
@@ -14,4 +14,4 @@ keywords = ["qsbr", "lock-free", "memory-reclamation", "high-performance", "asyn
 categories = ["concurrency", "memory-management", "asynchronous"]
 
 [dependencies]
-orengine-utils = "^1.1"
+orengine-utils = "^1.3"

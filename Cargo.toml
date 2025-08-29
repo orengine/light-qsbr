@@ -14,4 +14,4 @@ keywords = ["qsbr", "lock-free", "memory-reclamation", "high-performance", "asyn
 categories = ["concurrency", "memory-management", "asynchronous"]
 
 [dependencies]
-orengine-utils = "^1.3"
+orengine-utils = "^1.4"

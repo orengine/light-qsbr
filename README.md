@@ -37,7 +37,7 @@ and asynchronous runtimes, without the complexity of a garbage collector or haza
 
 ```rust
 use light_qsbr::{SharedManager, local_manager};
-use light_qsbr::orengine_utils::instant::OrengineInstant;
+use light_qsbr::orengine_utils::OrengineInstant;
 
 fn main() {
     // Create the global manager

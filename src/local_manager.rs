@@ -6,7 +6,7 @@ use std::time::Duration;
 use std::{mem, thread};
 use orengine_utils::clear_with;
 use orengine_utils::hints::{likely, unlikely, unwrap_or_bug_hint, unwrap_or_bug_message_hint};
-use orengine_utils::instant::OrengineInstant;
+use orengine_utils::OrengineInstant;
 use crate::deffered::Deferred;
 use crate::shared_manager::SharedManager;
 
@@ -79,7 +79,7 @@ unsafe impl Sync for Storage {}
 ///
 /// ```rust
 /// use std::cell::Cell;
-/// use light_qsbr::{local_manager, SharedManager, orengine_utils::instant::OrengineInstant, LocalManager};
+/// use light_qsbr::{local_manager, SharedManager, orengine_utils::OrengineInstant, LocalManager};
 ///
 /// # struct Runtime { tasks: Vec<Box<dyn FnOnce() + Send + 'static>>, is_stopped: Cell<bool> }
 /// # struct LockFreeStack<T> { ptr: *mut T }

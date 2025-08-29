@@ -38,7 +38,7 @@
 //! ```rust
 //! use std::cell::Cell;
 //! use light_qsbr::{SharedManager, local_manager, LocalManager};
-//! use light_qsbr::orengine_utils::instant::OrengineInstant;
+//! use light_qsbr::orengine_utils::OrengineInstant;
 //!
 //! # fn main() {
 //! let shared = SharedManager::new();

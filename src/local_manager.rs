@@ -134,6 +134,7 @@ pub struct LocalManager {
     this_epoch_start: OrengineInstant,
     was_passed_epoch: bool,
     shared_manager: SharedManager,
+    was_stopped: bool,
 
     prev_storage: Storage,
     current_storage: Storage,
@@ -147,10 +148,25 @@ impl LocalManager {
             this_epoch_start: unsafe { MaybeUninit::zeroed().assume_init() },
             was_passed_epoch: false,
             shared_manager: shared_manager.clone(),
+            was_stopped: false,
 
             prev_storage: Storage::new(),
             current_storage: Storage::new(),
         }
+    }
+
+    /// # Panics
+    ///
+    /// Panics if the [`LocalManager`] is stopped.
+    #[cold]
+    #[inline(never)]
+    fn handle_stopped(&self) {
+        assert!(self.was_stopped);
+
+        panic!(
+            "`LocalManager` is used after calling `LocalManager::temporary_deregister` \
+            and before calling `LocalManager::resume_after_temporary_deregister`."
+        )
     }
 
     /// Returns the number of bytes deallocated since creation of the `SharedManager`.
@@ -175,6 +191,10 @@ impl LocalManager {
     ///
     /// It requires the same safety conditions as [`dealloc`].
     pub unsafe fn schedule_deallocate<T>(&mut self, ptr: *const T) {
+        if unlikely(self.was_stopped) {
+            self.handle_stopped();
+        }
+
         self.current_storage
             .to_deallocate
             .push((ptr.cast::<u8>().cast_mut(), Layout::new::<T>()));
@@ -191,6 +211,10 @@ impl LocalManager {
     ///
     ///
     pub unsafe fn schedule_deallocate_slice<T>(&mut self, ptr: *const T, len: usize) {
+        if unlikely(self.was_stopped) {
+            self.handle_stopped();
+        }
+
         self.current_storage.to_deallocate.push((
             ptr.cast::<u8>().cast_mut(),
             unwrap_or_bug_hint(Layout::array::<T>(len)),
@@ -206,6 +230,10 @@ impl LocalManager {
     ///
     /// It requires the same safety conditions as [`mem::ManuallyDrop::drop`].
     pub unsafe fn schedule_drop<F: FnOnce()>(&mut self, func: F) {
+        if unlikely(self.was_stopped) {
+            self.handle_stopped();
+        }
+
         self.current_storage.to_drop.push(Deferred::new(func));
     }
 
@@ -232,12 +260,18 @@ impl LocalManager {
     ///
     /// While at least one thread doesn't pass the epoch,
     /// all other threads can't free memory.
-    pub fn maybe_pass_epoch(&mut self, now: OrengineInstant) {
+    pub fn maybe_pass_epoch(&mut self, now: impl Into<OrengineInstant>) {
         #[cfg(not(test))]
         const EXPECTED_EPOCH_DURATION: Duration = Duration::from_millis(10);
 
         #[cfg(test)]
         const EXPECTED_EPOCH_DURATION: Duration = Duration::from_micros(100);
+
+        let now = now.into();
+
+        if unlikely(self.was_stopped) {
+            self.handle_stopped();
+        }
 
         if likely(now - self.this_epoch_start < EXPECTED_EPOCH_DURATION) {
             return;
@@ -359,6 +393,76 @@ impl LocalManager {
 
         deregister_in_new_epoch(args);
     }
+
+    /// Deregisters the thread-local `LocalManager` without reclaiming memory.
+    ///
+    /// It is the unsafest function in the library.
+    /// It is expected to be called only before the thread is stopped
+    /// and to be __resumed__ by calling [`LocalManager::resume_after_temporary_deregister`]
+    /// after the thread is resumed.
+    ///
+    /// After this function is called and before calling
+    /// [`LocalManager::resume_after_temporary_deregister`], the thread-local `LocalManager`
+    /// is invalid.
+    ///
+    /// You should completely deregister the thread-local `LocalManager` by calling
+    /// [`LocalManager::deregister`] before the thread is terminated.
+    ///
+    /// # Safety
+    ///
+    /// * The thread must be registered in the [`SharedManager`].
+    /// * After calling this function, the [`LocalManager`] is not used before calling
+    ///   [`LocalManager::resume_after_temporary_deregister`].
+    /// * [`LocalManager::deregister`] must be called before the thread is terminated.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use light_qsbr::{local_manager, LocalManager, SharedManager};
+    ///
+    /// let shared_manager = SharedManager::new();
+    ///
+    /// shared_manager.register_new_executor();
+    ///
+    /// // Do some work
+    ///
+    /// // While thread is stopped it can't call `local_manager.maybe_pass_epoch`.
+    /// // But completely deregister is excessive.
+    /// // While `local_manager().temporary_deregister()` is inexpensive
+    /// // and allows other threads to pass epochs.
+    ///
+    /// unsafe { local_manager().temporary_deregister(); }
+    ///
+    /// std::thread::sleep(std::time::Duration::from_secs(1));
+    ///
+    /// unsafe { local_manager().resume_after_temporary_deregister(); }
+    ///
+    /// // Do some work
+    ///
+    ///  unsafe { LocalManager::deregister(); }
+    /// ```
+    pub unsafe fn temporary_deregister(&mut self) {
+        self.was_stopped = true;
+
+        self.shared_manager().deregister_executor();
+    }
+
+    /// Resumes the thread-local `LocalManager` after calling [`LocalManager::temporary_deregister`].
+    ///
+    /// # Safety
+    ///
+    /// * The thread must be registered (before calling [`LocalManager::temporary_deregister`])
+    ///   in the [`SharedManager`].
+    /// * [`LocalManager::temporary_deregister`] must be called before calling this function.
+    ///
+    /// # Example
+    ///
+    /// You can find an example in [`LocalManager::temporary_deregister`].
+    pub unsafe fn resume_after_temporary_deregister(&mut self) {
+        self.was_stopped = false;
+
+        self.shared_manager().register_executor_again();
+    }
 }
 
 thread_local! {
@@ -384,4 +488,67 @@ pub fn local_manager() -> &'static mut LocalManager {
                 "Local manager is not registered in this thread."
             )
         })
+}
+
+#[cfg(test)]
+mod tests {
+    use std::sync::{Arc, Condvar, Mutex};
+    use super::*;
+
+    #[test]
+    fn test_temporary_deregister() {
+        let shared_manager = SharedManager::new();
+        let was_started = Arc::new((Mutex::new(false), Condvar::new()));
+        let was_started_clone = was_started.clone();
+        let was_passed = Arc::new((Mutex::new(false), Condvar::new()));
+        let was_passed_clone = was_passed.clone();
+
+        shared_manager.register_new_executor();
+
+        let handle = thread::spawn(move || {
+            shared_manager.register_new_executor();
+
+            *was_started.0.lock().unwrap() = true;
+
+            was_started.1.notify_one();
+
+            for _ in 0..10 {
+                local_manager().maybe_pass_epoch(OrengineInstant::now());
+
+                thread::sleep(Duration::from_millis(1));
+            }
+
+            *was_passed.0.lock().unwrap() = true;
+
+            was_passed.1.notify_one();
+
+            unsafe { LocalManager::deregister(); }
+        });
+
+        let mut started = was_started_clone.0.lock().unwrap();
+        while !*started {
+            started = was_started_clone.1.wait(started).unwrap();
+        }
+
+        drop(started);
+
+        unsafe { local_manager().temporary_deregister(); }
+
+        let mut passed = was_passed_clone.0.lock().unwrap();
+        let mut timeout_error;
+        while !*passed {
+            (passed, timeout_error) = was_passed_clone.1.wait_timeout(passed, Duration::from_secs(3)).unwrap();
+
+            assert!(!timeout_error.timed_out());
+        }
+
+        drop(passed);
+
+        unsafe {
+            local_manager().resume_after_temporary_deregister();
+            LocalManager::deregister();
+        }
+
+        handle.join().unwrap();
+    }
 }

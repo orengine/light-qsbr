@@ -99,6 +99,26 @@ impl SharedManager {
         });
     }
 
+    /// Registers an executor again but does not install a new thread-local [`LocalManager`].
+    ///
+    /// # Panics
+    ///
+    /// Panics if the current thread does not have a registered [`LocalManager`].
+    pub(crate) fn register_executor_again(&self) {
+        self.inner.number_of_executors_in_epoch.register_new_executor();
+
+        LOCAL_MANAGER.with(|local_manager_| {
+            let local_manager = unsafe { &mut *local_manager_.get() };
+
+            assert!(
+                local_manager.is_some(),
+                "Detected misusage of `LocalManager::temporary_deregister`, \
+                the thread-local `LocalManager` was completely deregistered after calling it \
+                and before calling `LocalManager::resume_after_temporary_deregister`."
+            );
+        });
+    }
+
     /// Deregisters an executor from the current epoch.
     ///
     /// Returns `true` if all executors have left the current epoch, which means

@@ -321,7 +321,7 @@ mod lock_free_stack {
                     unsafe { &*new_node }.next.store(old_head, Ordering::Relaxed);
                 }
 
-                match self.head.compare_exchange(
+                match self.head.compare_exchange_weak(
                     old_head,
                     new_node,
                     Ordering::Release,
@@ -338,7 +338,7 @@ mod lock_free_stack {
         }
 
         pub fn pop(&self) -> Option<T> {
-            let mut old_head = self.head.load(Ordering::Relaxed);
+            let mut old_head = self.head.load(Ordering::Acquire);
 
             loop {
                 if old_head.is_null() {
@@ -346,12 +346,12 @@ mod lock_free_stack {
                 }
 
                 let node_ref = unsafe { &*old_head };
-                let next = node_ref.next.load(Ordering::Acquire);
+                let next = node_ref.next.load(Ordering::Relaxed);
 
-                match self.head.compare_exchange(
+                match self.head.compare_exchange_weak(
                     old_head,
                     next,
-                    Ordering::Release,
+                    Ordering::Acquire,
                     Ordering::Relaxed,
                 ) {
                     Ok(_) => {

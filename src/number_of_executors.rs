@@ -37,7 +37,7 @@ impl NumberOfExecutorsInEpoch {
     /// Creates a new `NumberOfExecutorsInEpoch`.
     pub(crate) const fn new() -> Self {
         Self {
-            data: CachePaddedAtomicUsize::new(),
+            data: CachePaddedAtomicUsize::new(0),
         }
     }
     

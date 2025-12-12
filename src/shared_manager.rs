@@ -55,10 +55,10 @@ impl SharedManager {
     pub fn new() -> Self {
         Self {
             inner: LightArc::new(Inner {
-                current_epoch: CachePaddedAtomicUsize::new(),
+                current_epoch: CachePaddedAtomicUsize::new(0),
                 number_of_executors_in_epoch: NumberOfExecutorsInEpoch::new(),
                 #[cfg(test)]
-                bytes_deallocated: CachePaddedAtomicUsize::new(),
+                bytes_deallocated: CachePaddedAtomicUsize::new(0),
             })
         }
     }
